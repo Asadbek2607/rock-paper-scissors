@@ -3,7 +3,6 @@ const readline = require("readline");
 const chalk = require("chalk");
 const Table = require("table");
 
-
 class KeyGenerator {
     static generateKey() {
         return crypto.randomBytes(32).toString("hex"); // 256 bits key (32 bytes)
@@ -46,6 +45,7 @@ class Rules {
 
         return table;
     }
+
     getWinStatus(userMove, computerMove) {
         return this.winTable[userMove - 1][computerMove - 1];
     }
@@ -91,51 +91,37 @@ class Game {
         }
 
         this.moves = args;
-        this.key = KeyGenerator.generateKey();
-        this.rules = new Rules(this.moves);
-        this.hmac = HMACCalculator.calculateHMAC(this.key, this.moves.join(" "));
         this.rl = readline.createInterface({
             input: process.stdin,
             output: process.stdout,
         });
     }
 
-    displayMovesMenu() {
-        console.log("HMAC:", this.hmac);
+    async playGame() {
+        const key = KeyGenerator.generateKey();
+        const rules = new Rules(this.moves);
+        const hmac = HMACCalculator.calculateHMAC(key, this.moves.join(" "));
+
+        console.log("HMAC:", hmac);
         console.log("Available moves:");
         for (let i = 0; i < this.moves.length; i++) {
             console.log(`${i + 1} - ${this.moves[i]}`);
         }
         console.log("0 - exit");
         console.log("? - help");
-    }
 
-    getUserMove() {
-        return new Promise((resolve) => {
-            this.rl.question("Enter your move: ", (userInput) => {
-                if (userInput === "?") {
-                    this.rules.displayHelpTable();
-                    this.getUserMove().then(resolve);
-                } else {
-                    resolve(parseInt(userInput));
-                }
-            });
-        });
-    }
-
-    async playGame() {
-        this.displayMovesMenu();
         const userMove = await this.getUserMove();
-
         if (userMove === 0) {
             console.log("Exiting the game.");
             this.rl.close();
             process.exit(0);
         } else {
             const computerMove = Math.floor(Math.random() * this.moves.length) + 1;
+            const winStatus = rules.getWinStatus(userMove, computerMove);
+
             console.log(`Your move: ${this.moves[userMove - 1]}`);
             console.log(`Computer move: ${this.moves[computerMove - 1]}`);
-            const winStatus = this.rules.getWinStatus(userMove, computerMove);
+
             if (winStatus === "Draw") {
                 console.log("It's a draw!");
             } else if (winStatus === "Win") {
@@ -143,9 +129,24 @@ class Game {
             } else {
                 console.log("You lose!");
             }
-            console.log("HMAC key:", this.key);
+
+            console.log("HMAC key:", key + "\n");
             this.playGame();
         }
+    }
+
+    getUserMove() {
+        return new Promise((resolve) => {
+            this.rl.question("Enter your move: ", (userInput) => {
+                if (userInput === "?") {
+                    const rules = new Rules(this.moves);
+                    rules.displayHelpTable();
+                    this.getUserMove().then(resolve);
+                } else {
+                    resolve(parseInt(userInput));
+                }
+            });
+        });
     }
 }
 
